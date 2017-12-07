@@ -1,0 +1,17 @@
+{
+    "name": "avtomon/PQFormBuilder",
+    "description": "Form Builder by PHPQuery",
+    "type": "project",
+    "minimum-stability": "dev",
+    "config": {
+        "process-timeout": 1800
+    },
+    "autoload": {
+        "psr-4": {
+            "avtomon\\": "src/"
+        }
+    },
+    "require": {
+        "jaeger/phpquery-single": "dev-master"
+    }
+}
