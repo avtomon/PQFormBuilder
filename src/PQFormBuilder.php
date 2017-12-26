@@ -17,7 +17,7 @@ class PQFormBuilder
     private $form = null; // HTML-объект формы (набора полей)
 
     /**
-     * @param array $formConf
+     * @param array $formConf - параметры конфигурации
      *
      * @throws PQFormBuilderException
      */
@@ -31,17 +31,17 @@ class PQFormBuilder
             throw new Error('Не задан заголовок формы');
         }
 
-        $this->formConf = $formConf;
+        $this->formConf = &$formConf;
 
         $this->formParent = phpQuery::pq('<div>')->attr('id', 'formParent');
 
-        $this->title = phpQuery::pq('<div>')->html($formConf['title']['html'] && !$formConf['title']['text'])->appendTo($this->formParent);
-        $this->title = self::renderAttributes($this->title, $formConf['title']);
+        $formConf['title']['html'] = !empty($formConf['title']['html']) ? $formConf['title']['html'] : $formConf['title']['text'];
 
-        $this->menu = phpQuery::pq('<menu>').appendTo($this->formParent);
+        $this->title = phpQuery::pq('<div>')->html($formConf['title']['html'])->appendTo($this->formParent);
+        self::renderAttributes($this->title, $formConf['title']);
 
         $this->form = phpQuery::pq('<form>')->appendTo($this->formParent);
-        $this->form = self::renderAttributes($this->form, $formConf['form'] + ['method' => 'POST'], ['fields', 'labelafter']);
+        self::renderAttributes($this->form, $formConf['form'] + ['method' => 'POST'], ['fields', 'labelafter']);
 
         if (!empty($formConf['sections']) && is_array($formConf['sections'])) {
             $this->parseSections($formConf['sections']);
@@ -50,7 +50,7 @@ class PQFormBuilder
         }
 
         if (!empty($formConf['buttons']) && is_array($formConf['buttons'])) {
-            $this->parseButtons($formConf['buttons']);
+            $this->parseButtons($this->form, $formConf['buttons']);
         }
     }
 
@@ -61,9 +61,9 @@ class PQFormBuilder
      * @param array $attrs - массив атрибутов вида <имя атрибута> => <значение атрибута>
      * @param array $stopAttrs - массив имен атрибутов, которые добавлять не надо
      *
-     * @return phpQueryObject|QueryTemplatesSource|QueryTemplatesParse|QueryTemplatesSourceQuery
+     * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery|null
      */
-    private static function renderAttributes($el, array $attrs, array $stopAttrs = [])
+    private static function renderAttributes(&$el, array $attrs, array $stopAttrs = [])
     {
         unset($attrs['html'], $attrs['text'], $attrs['value']);
         foreach ($attrs as $attr => $value) {
@@ -80,21 +80,19 @@ class PQFormBuilder
     /**
      * Добавить кнопки, заданные в конфигурации к форме
      *
+     * @param $section - в какой раздел вставляем
      * @param array $buttons - конфигурация кнопок
      *
-     * @return phpQueryObject|QueryTemplatesParse|QueryTemplatesSource|QueryTemplatesSourceQuery|null
+     * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery|null
      */
-    private function parseButtons(array $buttons)
+    private function parseButtons($section, array $buttons)
     {
         foreach($buttons as $button) {
-            if (empty($button['type'])) {
-                continue;
-            }
-
             $button['html'] = !empty($button['html']) ? $button['html'] : (!empty($button['text']) ? $button['text'] : '');
-            $buttonEl = phpQuery::pq('<button>')->appendTo($this->form);
+            $button['type'] = !empty($button['type']) ? $button['type'] : 'button';
+            $buttonEl = phpQuery::pq('<button>')->appendTo($section);
             $buttonEl->html($button['html']);
-            $buttonEl = self::renderAttributes($buttonEl, $button);
+            self::renderAttributes($buttonEl, $button);
         }
 
         return $this->form;
@@ -105,22 +103,37 @@ class PQFormBuilder
      *
      * @param array $sections - массив разделов
      *
-     * @return phpQueryObject|QueryTemplatesParse|QueryTemplatesSource|QueryTemplatesSourceQuery|null
+     * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery|null
      */
     private function parseSections(array $sections)
     {
-        foreach($sections as $section) {
+        $this->menu = phpQuery::pq('<menu>');
+        self::renderAttributes($this->menu, $this->formConf['menu']);
+        $this->title->after($this->menu);
+
+        foreach($sections as $number => $section) {
             $section['html'] = !empty($section['html']) ? $section['html'] : (!empty($section['text']) ? $section['text'] : '');
             if (empty($section['id']) || !$section['html'] || empty($section['fields']) || !is_array($section['fields'])) {
                 continue;
             }
 
-            $menuEl = phpQuery::pq('<li>')->html($section['html'])->appendTo($this->menu);
-            $menuEl = self::renderAttributes($menuEl, $section);
-
             $formSection = phpQuery::pq('<section>')->attr('id', $section['id'])->appendTo($this->form);
 
+            $section['href'] = "#{$section['id']}";
+            $menuEl = phpQuery::pq('<a>')->html($section['html'])->appendTo($this->menu);
+            self::renderAttributes($menuEl, $section);
+
             $this->parseFields($formSection, $section['fields']);
+
+            if (!empty($section['buttons']) && is_array($section['buttons'])) {
+                $this->parseButtons($formSection, $section['buttons']);
+            }
+        }
+
+        if (!empty($this->formConf['invisibleClass']) && !empty($this->formConf['currentClass'])) {
+            $visibleNumber = !empty($this->formConf['currentNumber']) ? $this->formConf['currentNumber'] : 0;
+            $this->form->find('section')->eq($visibleNumber)->siblings('section')->addClass($this->formConf['invisibleClass']);
+            $this->menu->find('a')->eq($visibleNumber)->addClass($this->formConf['currentClass']);
         }
 
         return $this->menu;
@@ -132,7 +145,7 @@ class PQFormBuilder
      * @param $section - в какой раздел вставляем
      * @param array $fields - поля
      *
-     * @return phpQueryObject|QueryTemplatesParse|QueryTemplatesSource|QueryTemplatesSourceQuery|null
+     * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery|null
      */
     private function parseFields($section, array $fields)
     {
@@ -141,8 +154,8 @@ class PQFormBuilder
                 continue;
             }
 
-            $fieldWrapper = phpQuery::pq('<div>').appendTo($this->form);
-            $fieldWrapper = self::renderAttributes($fieldWrapper, $field['fieldWrapper']);
+            $fieldWrapper = phpQuery::pq('<div>')->appendTo($this->form);
+            self::renderAttributes($fieldWrapper, $field['fieldWrapper']);
 
             $field['html'] = !empty($field['html']) ? $field['html'] : (!empty($field['text']) ? $field['text'] : $field['name']);
 
@@ -155,12 +168,12 @@ class PQFormBuilder
 
             switch ($field['type']) {
                 case 'select':
-                    if (empty($field['options']) || !is_array($field['options'])) {
-                        continue;
-                    }
-
                     $fieldEl = phpQuery::pq('<select>')->val($field['value']);
-                    $fieldEl = self::renderAttributes($fieldEl, $field, ['type', 'options']);
+                    self::renderAttributes($fieldEl, $field, ['type', 'options']);
+
+                    if (empty($field['options']) || !is_array($field['options'])) {
+                        break;
+                    }
 
                     foreach($field['options'] as $option) {
                         if (empty($option['value']) && empty($option['html']) && empty($option['text'])) {
@@ -172,17 +185,17 @@ class PQFormBuilder
                             ->html($option['html'])
                             ->val()
                             ->appendTo($fieldEl);
-                        $optionEl = self::renderAttributes($optionEl, $option);
+                        self::renderAttributes($optionEl, $option);
                     }
                     break;
 
                 case 'textarea':
                     $fieldEl = phpQuery::pq('<textarea>')->val($field['value']);
-                    $fieldEl = self::renderAttributes($fieldEl, $field, ['type']);
+                    self::renderAttributes($fieldEl, $field, ['type']);
                     break;
                 default:
                     $fieldEl = phpQuery::pq('<input>')->val($field['value']);
-                    $fieldEl = self::renderAttributes($fieldEl, $field);
+                    self::renderAttributes($fieldEl, $field);
             }
 
             if ($this->formConf['labelAfter'])
@@ -202,24 +215,75 @@ class PQFormBuilder
      *
      * @param array $valuesObject - массив значений в формате <имя поля> => <значение>
      *
-     * @return phpQueryObject|QueryTemplatesParse|QueryTemplatesSource|QueryTemplatesSourceQuery|null
+     * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery|null
      */
     public function setFormValues(array $valuesObject)
     {
         foreach($valuesObject as $name => $value) {
-            $this->form->find('*[name=' + $name + ']').val($value);
+            $this->form->find('*[name=' + $name + ']')->val($value);
         }
 
         return $this->form;
     }
 
     /**
-     * Вернуть форму в виде HTML
+     * Добавить опции для выпадающего списка
      *
-     * @return string
+     * @param $name - имя обрабатываемого списка
+     * @param array $values - массив значений списка
+     * @param array $htmls - массив дочерних элементов для опций
+     * @param array $attrs - массив дополнительных атрибутов для опций
+     *
+     * @return null|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
+     *
+     * @throws PQFormBuilderException
      */
-    public function getFormHTML(): string
+    public function setSelectOptions($name, array $values, array $htmls = [], array $attrs = [])
     {
-        return $this->formParent->wrap('<div></div>')->html();
+        if (!($select = $this->form->find('*[name=' + $name + ']'))) {
+            throw new PQFormBuilderException("Поля с имененем $name нет в форме");
+        }
+
+        foreach ($values as $index => $value) {
+            $option = phpQuery::pq('<option>')
+                ->val($value)
+                ->html($htmls[$index] ?? $value)
+                ->appendTo($select);
+            self::renderAttributes($option, $attrs);
+        }
+
+        return $this->form;
+    }
+
+    /**
+     * Установить параметр action формы
+     *
+     * @param string $newAction - новое значение action
+     *
+     * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery|null
+     */
+    public function setFormAction(string $newAction)
+    {
+        return $this->form->attr('action', $newAction);
+    }
+
+    /**
+     * Вернуть форму
+     *
+     * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery|null
+     */
+    public function getFormParent()
+    {
+        return $this->formParent;
+    }
+
+    /**
+     * Вернуть конфиг формы
+     *
+     * @return array
+     */
+    public function getFormConf(): array
+    {
+        return $this->formConf;
     }
 }
