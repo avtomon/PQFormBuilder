@@ -12,6 +12,12 @@
         }
     },
     "require": {
-        "jaeger/phpquery-single": "dev-master"
-    }
+        "avtomon/phpQuery-single": "dev-master"
+    },
+    "repositories": [
+        {
+            "type": "git",
+            "url": "https://github.com/avtomon/phpQuery-single.git"
+        }
+    ]
 }
