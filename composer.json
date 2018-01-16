@@ -18,6 +18,6 @@
         }
     ],
     "require": {
-        "avtomon/phpQuery-single": "*"
+        "avtomon/phpQuery-single": "dev-master"
     }
 }
