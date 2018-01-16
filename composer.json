@@ -12,12 +12,12 @@
         }
     },
     "require": {
-        "avtomon/phpQuery-single": "dev-master"
+        "avtomon/phpquery-single": "dev-master"
     },
     "repositories": [
         {
             "type": "git",
-            "url": "https://github.com/avtomon/phpQuery-single.git"
+            "url": "https://github.com/avtomon/phpquery-single.git"
         }
     ]
 }
