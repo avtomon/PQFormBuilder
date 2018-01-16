@@ -11,13 +11,13 @@
             "avtomon\\": "src/"
         }
     },
-    "require": {
-        "jae-jae/phpQuery-single": "*"
-    },
     "repositories": [
         {
             "type": "git",
             "url": "https://github.com/avtomon/phpQuery-single.git"
         }
-    ]
+    ],
+    "require": {
+        "avtomon/phpQuery-single": "*"
+    }
 }
