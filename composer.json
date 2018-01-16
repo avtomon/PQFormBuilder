@@ -11,13 +11,13 @@
             "avtomon\\": "src/"
         }
     },
+    "require": {
+        "avtomon/phpQuery-single": "dev-master"
+    },
     "repositories": [
         {
             "type": "git",
             "url": "https://github.com/avtomon/phpQuery-single.git"
         }
-    ],
-    "require": {
-        "avtomon/phpQuery-single": "dev-master"
-    }
+    ]
 }
