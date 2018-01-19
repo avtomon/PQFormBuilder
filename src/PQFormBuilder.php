@@ -10,14 +10,68 @@ class PQFormBuilderException extends \Exception
 
 class PQFormBuilder
 {
-    private $formConf = null; // Конфигурация формы
-    private $formParent = null; // HTML-объект формы
-    private $title = null; // HTML-объект заголовка формы
-    private $menu = null; // HTML-объект меню формы, если есть деление на разделы полей
-    private $form = null; // HTML-объект формы (набора полей)
+    /**
+     * Конфигурация формы
+     *
+     * @var array|null
+     */
+    private $formConf = null;
+
+    /**
+     * HTML-объект формы
+     *
+     * @var null|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
+     */
+    private $formParent = null;
+
+    /**
+     * HTML-объект заголовка формы
+     *
+     * @var null|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
+     */
+    private $title = null;
+
+    /**
+     * HTML-объект меню формы, если есть деление на разделы полей
+     *
+     * @var null|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
+     */
+    private $menu = null;
+
+    /**
+     * HTML-объект формы (набора полей)
+     *
+     * @var null|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
+     */
+    private $form = null;
+
+    /**
+     * Имя поля содержащего значение <option>
+     *
+     * @var string
+     */
     private $selectValueFieldName = 'value';
+
+    /**
+     * Имя поля содержащего тектс <option>
+     *
+     * @var string
+     */
     private $selectTextFieldName = 'text';
+
+    /**
+     * phpQuery-объект формы
+     *
+     * @var null|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
+     */
     private $document = null;
+
+    /**
+     * Класс картинки отображающей отсутствие картинок
+     *
+     * @var mixed|string
+     */
+    private $stopImageClass = 'no-image';
 
     /**
      * @param array $formConf - параметры конфигурации
@@ -60,6 +114,10 @@ class PQFormBuilder
             if (!empty($formConf['buttons']) && is_array($formConf['buttons'])) {
                 $this->parseButtons($this->form, $formConf['buttons']);
             }
+        }
+
+        if (!empty($formConf['stopImageClass'])) {
+            $this->stopImageClass = $formConf['stopImageClass'];
         }
     }
 
@@ -178,10 +236,9 @@ class PQFormBuilder
 
             if (!empty($this->formConf['templatePath']) && !empty($field['template'])) {
                 $fieldEl = phpQuery::pq(file_get_contents($this->formConf['templatePath'] . '/' . $field['template']));
-                $fieldEl
-                    ->find('input, select, textarea')
-                    ->attr('name', $field['name'])
-                    ->attr('id', $field['id']);
+                $fieldEl->find('label')->text($field['html']);
+                $input = $fieldEl->find('input, select, textarea');
+                self::renderAttributes($input, $field);
             } else {
                 $label = phpQuery::pq('<label>')
                     ->html($field['html'])
@@ -285,19 +342,27 @@ class PQFormBuilder
     private function setImageValue(string $name, $value)
     {
         $element = $this->form->find("img[data-view=$name]");
-        if (is_array($value)) {
-            $lastIndex = count($value) - 1;
-            foreach ($value as $index => $imgSrc) {
-                $element->attr('src', $imgSrc);
+        if (!is_array($value)) {
+            $value = [$value];
+        }
 
-                if ($index < $lastIndex) {
-                    $newElement = $element->clone();
-                    $element->after($newElement);
-                    $element = $newElement;
-                }
+        $element->removeClass($this->stopImageClass);
+        $lastIndex = count($value) - 1;
+        foreach ($value as $index => $imgSrc) {
+            $element->attr('src', $imgSrc);
+            $element
+                ->after(
+                    pq('<input>')
+                        ->attr('type', 'hidden')
+                        ->attr('name', $name)
+                        ->val($imgSrc)
+                );
+
+            if ($index < $lastIndex) {
+                $newElement = $element->clone();
+                $element->after($newElement);
+                $element = $newElement;
             }
-        } else {
-            $element->attr('src', $value);
         }
 
         return $element;
@@ -313,12 +378,13 @@ class PQFormBuilder
      * @param array $attrs - массив дополнительных атрибутов для опций
      *
      * @return null|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
+     *
      * @throws PQFormBuilderException
      * @throws \Exception
      */
     public function setSelectOptions($select, array $values, bool $addEmpty = true, array $htmls = [], array $attrs = [])
     {
-        if (gettype($select) === 'string' && !($select = $this->form->find("[name=$select]"))) {
+        if (gettype($select) === 'string' && !((string) $select = $this->form->find("[name=$select]"))) {
             throw new PQFormBuilderException("Поля с имененем $select нет в форме");
         }
 
@@ -373,6 +439,11 @@ class PQFormBuilder
         return $this->formConf;
     }
 
+    /**
+     * Вернуть объект в виде строки
+     *
+     * @return string
+     */
     public function __toString():string
     {
         return $this->formParent;
