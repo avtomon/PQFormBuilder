@@ -80,6 +80,10 @@ class PQFormBuilder
      */
     public function __construct(array $formConf)
     {
+        if (empty($formConf['form'])) {
+            throw new PQFormBuilderException('Не задана конфигурация формы');
+        }
+
         if (empty($formConf['form']['action'])) {
             throw new PQFormBuilderException('Не задан урл для отправки формы');
         }
@@ -317,13 +321,26 @@ class PQFormBuilder
      */
     private function setInputValue(string $name, $value)
     {
-        $element = $this->form->find("[name=$name]");
+        if (!((string) $element = $this->form->find("[name=$name]"))) {
+            return;
+        }
+
         if (is_array($value) && $element->is('select')) {
+            if (!empty($this->selectTextFieldName) || !empty($this->selectValueFieldName)) {
+                throw new PQFormBuilderException('В конфигурации не заданы имена полей для получения значений и текcтов выпадающего списка');
+            }
+
             $selectTextFieldName = in_array($this->selectTextFieldName, $value[0]) ? $this->selectTextFieldName : $this->selectValueFieldName;
             $attrs = array_map(function ($item) use ($selectTextFieldName) {
-                unset($item[$selectTextFieldName], $item[$this->selectValueFieldName]);
+                unset($item[$this->selectTextFieldName], $item[$this->selectValueFieldName]);
             }, $value);
-            $this->setSelectOptions($element, array_column($value, $this->selectValueFieldName),  array_column($value, $this->selectTextFieldName), $attrs);
+            $this->setSelectOptions(
+                $element,
+                array_column($value, $this->selectValueFieldName),
+                $value['addEmpty'] ?? true,
+                array_column($value, $this->selectTextFieldName),
+                $attrs
+            );
         } else {
             $element->val($value);
         }
@@ -335,13 +352,16 @@ class PQFormBuilder
      * Вставка изображений
      *
      * @param string $name - имя элемента для отображения картинки
-     * @param $value - изображения или массив изображений
+     * @param $value - изображение или массив изображений
      *
      * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
      */
     private function setImageValue(string $name, $value)
     {
-        $element = $this->form->find("img[data-view=$name]");
+        if (!((string) $element = $this->form->find("img[data-view=$name]"))) {
+            return;
+        }
+
         if (!is_array($value)) {
             $value = [$value];
         }
@@ -349,8 +369,8 @@ class PQFormBuilder
         $element->removeClass($this->stopImageClass);
         $lastIndex = count($value) - 1;
         foreach ($value as $index => $imgSrc) {
-            $element->attr('src', $imgSrc);
             $element
+                ->attr('src', $imgSrc)
                 ->after(
                     pq('<input>')
                         ->attr('type', 'hidden')
@@ -359,7 +379,7 @@ class PQFormBuilder
                 );
 
             if ($index < $lastIndex) {
-                $newElement = $element->clone();
+                $newElement = $element->clone(true);
                 $element->after($newElement);
                 $element = $newElement;
             }
@@ -371,18 +391,19 @@ class PQFormBuilder
     /**
      * Добавить опции для выпадающего списка
      *
-     * @param string|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery $select - имя обрабатываемого списка
+     * @param string|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery $select - элемент списка или имя обрабатываемого списка
      * @param array $values - массив значений списка
      * @param bool $addEmpty - добавлять ли в начало списка пустой элемент
      * @param array $htmls - массив дочерних элементов для опций
      * @param array $attrs - массив дополнительных атрибутов для опций
+     * @param $selectedValue - выбранный элемент списка
      *
      * @return null|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
      *
      * @throws PQFormBuilderException
      * @throws \Exception
      */
-    public function setSelectOptions($select, array $values, bool $addEmpty = true, array $htmls = [], array $attrs = [])
+    public function setSelectOptions($select, array $values, bool $addEmpty = true, array $htmls = [], array $attrs = [], $selectedValue = null)
     {
         if (gettype($select) === 'string' && !((string) $select = $this->form->find("[name=$select]"))) {
             throw new PQFormBuilderException("Поля с имененем $select нет в форме");
@@ -397,6 +418,10 @@ class PQFormBuilder
         }
 
         foreach ($values as $index => $value) {
+            if ($value == $selectedValue) {
+                $attrs['selected'] = 'selected';
+            }
+
             $option = phpQuery::pq('<option>')
                 ->val($value)
                 ->html(!empty($htmls[$index]) ? $htmls[$index] : $value)
@@ -404,7 +429,7 @@ class PQFormBuilder
             self::renderAttributes($option, $attrs);
         }
 
-        return $this->form;
+        return $select;
     }
 
     /**
