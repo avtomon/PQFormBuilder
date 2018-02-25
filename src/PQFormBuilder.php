@@ -73,6 +73,8 @@ class PQFormBuilder
      */
     private $stopImageClass = 'no-image';
 
+    private $hintHTML = '<i class="material-icons tooltipped" data-position="right" data-delay="50" data-tooltip="I am a tooltip">info_outline</i>';
+
     /**
      * @param array $formConf - параметры конфигурации
      *
@@ -96,6 +98,10 @@ class PQFormBuilder
             $formConf['templatePath'] = $_SERVER['DOCUMENT_ROOT'] . $formConf['templatePath'];
         }
 
+        if (!empty($formConf['hintHTML'])) {
+            $this->hintHTML = $formConf['hintHTML'];
+        }
+
         $this->formConf = &$formConf;
 
         $this->document = phpQuery::newDocument();
@@ -107,7 +113,7 @@ class PQFormBuilder
         self::renderAttributes($this->title, $formConf['title']);
 
         $this->form = phpQuery::pq('<form>')->appendTo($this->formParent);
-        self::renderAttributes($this->form, $formConf['form'] + ['method' => 'POST'], ['fields', 'labelafter']);
+        self::renderAttributes($this->form, array_merge($formConf['form'], ['method' => 'POST']), ['fields', 'labelafter']);
 
         $this->formConf['buttons'] = isset($this->formConf['buttons']) && is_array($this->formConf['buttons']) ? $this->formConf['buttons'] : [];
 
@@ -136,7 +142,7 @@ class PQFormBuilder
      */
     private static function renderAttributes(&$el, array $attrs, array $stopAttrs = [])
     {
-        unset($attrs['html'], $attrs['text'], $attrs['value']);
+        unset($attrs['html'], $attrs['text'], $attrs['value'], $attrs['hint']);
         foreach ($attrs as $attr => $value) {
             if (!is_string($attr) || in_array($attr, $stopAttrs)) {
                 continue;
@@ -211,6 +217,15 @@ class PQFormBuilder
         return $this->menu;
     }
 
+    private function renderFieldHint(array &$field)
+    {
+        if (empty($field['hint'])) {
+            return null;
+        }
+
+        return phpQuery::pq($this->hintHTML)->attr('data-tooltip', $field['hint']);
+    }
+
     /**
      * Добавить поля к форме
      *
@@ -226,70 +241,99 @@ class PQFormBuilder
                 continue;
             }
 
-            if (!empty($field['fieldWrapper'])) {
-                $fieldWrapper = phpQuery::pq('<div>')->appendTo($this->form);
-                self::renderAttributes($fieldWrapper, $field['fieldWrapper']);
-                $fieldWrapper->appendTo($section);
-            } else {
-                $fieldWrapper = &$section;
-            }
-
             $field['html'] = !empty($field['html']) ? $field['html'] : (!empty($field['text']) ? $field['text'] : $field['name']);
             $field['id'] = !empty($field['id']) ? $field['id'] : $field['name'];
             $field['value'] = isset($field['value']) ? $field['value'] : '';
 
+
             if (!empty($this->formConf['templatePath']) && !empty($field['template'])) {
-                $fieldEl = phpQuery::pq(file_get_contents($this->formConf['templatePath'] . '/' . $field['template']));
-                $fieldEl->find('label')->text($field['html']);
-                $input = $fieldEl->find('input, select, textarea');
-                self::renderAttributes($input, $field);
+                $newElArray = $this->renderTemplateField($field);
             } else {
-                $label = phpQuery::pq('<label>')
-                    ->html($field['html'])
-                    ->attr('for', $field['id'])
-                    ->appendTo($fieldWrapper);
-
-                switch ($field['type']) {
-                    case 'select':
-                        $fieldEl = phpQuery::pq('<select>')->val($field['value']);
-                        self::renderAttributes($fieldEl, $field, ['type', 'options']);
-
-                        if (empty($field['options']) || !is_array($field['options'])) {
-                            break;
-                        }
-
-                        foreach($field['options'] as $option) {
-                            if (empty($option['value']) && empty($option['html']) && empty($option['text'])) {
-                                continue;
-                            }
-
-                            $option['html'] = !empty($option['html']) ? $option['html'] : (!empty($option['text']) ? $option['text'] : $option['value']);
-                            $optionEl = phpQuery::pq('<option>')
-                                ->html($option['html'])
-                                ->val()
-                                ->appendTo($fieldEl);
-                            self::renderAttributes($optionEl, $option);
-                        }
-                        break;
-
-                    case 'textarea':
-                        $fieldEl = phpQuery::pq('<textarea>')->val($field['value']);
-                        self::renderAttributes($fieldEl, $field, ['type']);
-                        break;
-                    default:
-                        $fieldEl = phpQuery::pq('<input>')->val($field['value']);
-                        self::renderAttributes($fieldEl, $field);
-                }
+                $newElArray = $this->renderInlineField($field);
             }
 
-            if ($this->formConf['labelAfter'])
-                $fieldEl->prependTo($fieldWrapper);
-            else {
-                $fieldEl->appendTo($fieldWrapper);
+            foreach ($newElArray as $el) {
+                $section->append($el);
             }
         }
 
         return $section;
+    }
+
+    private function renderTemplateField(array &$field): ?array
+    {
+        if (empty($this->formConf['templatePath']) || empty($field['template'])) {
+            return null;
+        }
+
+        $fieldWrapper = phpQuery::pq(file_get_contents($this->formConf['templatePath'] . '/' . $field['template']));
+        $fieldWrapper->find('label')->text($field['html']);
+        $fieldEl = $fieldWrapper->find('input, select, textarea');
+        $hint = $this->renderFieldHint($field);
+        $fieldEl->after($hint);
+        self::renderAttributes($fieldEl, $field);
+
+        return [$fieldWrapper];
+    }
+
+    private function renderInlineField(array &$field): ?array
+    {
+        $label = phpQuery::pq('<label>')
+            ->html($field['html'])
+            ->attr('for', $field['id']);
+
+        switch ($field['type']) {
+            case 'select':
+                $fieldEl = phpQuery::pq('<select>')->val($field['value']);
+                self::renderAttributes($fieldEl, $field, ['type', 'options']);
+
+                if (empty($field['options']) || !is_array($field['options'])) {
+                    break;
+                }
+
+                foreach($field['options'] as $option) {
+                    if (empty($option['value']) && empty($option['html']) && empty($option['text'])) {
+                        continue;
+                    }
+
+                    $option['html'] = !empty($option['html']) ? $option['html'] : (!empty($option['text']) ? $option['text'] : $option['value']);
+                    $optionEl = phpQuery::pq('<option>')
+                        ->html($option['html'])
+                        ->val()
+                        ->appendTo($fieldEl);
+                    self::renderAttributes($optionEl, $option);
+                }
+                break;
+
+            case 'textarea':
+                $fieldEl = phpQuery::pq('<textarea>')->val($field['value']);
+                self::renderAttributes($fieldEl, $field, ['type']);
+                break;
+            default:
+                $fieldEl = phpQuery::pq('<input>')->val($field['value']);
+                self::renderAttributes($fieldEl, $field);
+        }
+
+        $hint = self::renderFieldHint($field);
+
+        if ($this->formConf['labelAfter'])
+            $elements = [$fieldEl, $hint, $label];
+        else {
+            $elements = [$label, $fieldEl, $hint];
+        }
+
+        if (empty($field['fieldWrapper'])) {
+            return $elements;
+        }
+
+        $fieldWrapper = phpQuery::pq('<div>')->appendTo($this->form);
+        self::renderAttributes($fieldWrapper, $field['fieldWrapper']);
+
+        foreach ($elements as $el) {
+            $fieldWrapper->append($el);
+        }
+
+        return [$fieldWrapper];
     }
 
     /**
@@ -473,7 +517,7 @@ class PQFormBuilder
      *
      * @return string
      */
-    public function __toString():string
+    public function __toString(): string
     {
         return $this->formParent;
     }
