@@ -169,11 +169,11 @@ class PQFormBuilder
         $this->formConf['buttons'] = isset($this->formConf['buttons']) && is_array($this->formConf['buttons']) ? $this->formConf['buttons'] : [];
 
         if (!empty($formConf['sections']) && is_array($formConf['sections'])) {
-            $this->parseSections($formConf['sections']);
+            $this->renderSections($formConf['sections']);
         } else if (!empty($formConf['fields']) && is_array($formConf['fields'])) {
-            $this->parseFields($this->form, $formConf['fields']);
+            $this->renderFields($this->form, $formConf['fields']);
             if (!empty($formConf['buttons']) && is_array($formConf['buttons'])) {
-                $this->parseButtons($this->form, $formConf['buttons']);
+                $this->renderButtons($this->form, $formConf['buttons']);
             }
         }
 
@@ -193,7 +193,7 @@ class PQFormBuilder
     {
         $this->formConf['sections'] = array_merge($this->formConf['sections'], $newSections['sections']);
         foreach ($newSections['sections'] as $section) {
-            $this->parseSection($section);
+            $this->renderSection($section);
         }
 
         return $this;
@@ -265,11 +265,11 @@ class PQFormBuilder
         $menuEl = phpQuery::pq('<a>')->html($section['html'])->appendTo($this->menu);
         self::renderAttributes($menuEl, $section);
 
-        $this->parseFields($formSection, $section['fields']);
+        $this->renderFields($formSection, $section['fields']);
 
         if (!empty($section['buttons']) && is_array($section['buttons'])) {
             $section['buttons'] = isset($section['buttons']) && is_array($section['buttons']) ? $section['buttons'] : [];
-            $this->parseButtons($formSection, array_merge($this->formConf['buttons'], $section['buttons']));
+            $this->renderButtons($formSection, array_merge($this->formConf['buttons'], $section['buttons']));
         }
 
         return $section;
@@ -289,7 +289,7 @@ class PQFormBuilder
         $this->title->after($this->menu);
 
         foreach($sections as $number => $section) {
-            $this->parseSection($section);
+            $this->renderSection($section);
         }
 
         if (!empty($this->formConf['invisibleClass']) && !empty($this->formConf['currentClass'])) {
