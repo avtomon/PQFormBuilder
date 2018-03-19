@@ -73,9 +73,44 @@ class PQFormBuilder
      */
     private $stopImageClass = 'no-image';
 
+    /**
+     * HTML-код шаблона подсказки к полям
+     *
+     * @var mixed|string
+     */
     private $hintHTML = '<i class="material-icons tooltipped" data-position="right" data-delay="50" data-tooltip="I am a tooltip">info_outline</i>';
 
     /**
+     * Индекс пути к файлу в массиве файлов,
+     *
+     * @var string
+     */
+    private $filePathKey = 'file_path';
+
+    /**
+     * Индекс пути к постеру файла (если есть) в массиве файлов
+     *
+     * @var mixed|string
+     */
+    private $filePosterKey = 'file_poster';
+
+    /**
+     * Индеск изначального имени файла в массиве файлов
+     *
+     * @var mixed|string
+     */
+    private $fileNameKey = 'file_name';
+
+    /**
+     * Префикс для подгжужаемых в форму, ранее сохраненных файлов
+     *
+     * @var mixed|string
+     */
+    private $fileNamePrefix = 'old_';
+
+    /**
+     * Конструктор
+     *
      * @param array $formConf - параметры конфигурации
      *
      * @throws PQFormBuilderException
@@ -100,6 +135,22 @@ class PQFormBuilder
 
         if (!empty($formConf['hintHTML'])) {
             $this->hintHTML = $formConf['hintHTML'];
+        }
+
+        if (!empty($formConf['filePathKey'])) {
+            $this->filePathKey = $formConf['filePathKey'];
+        }
+
+        if (!empty($formConf['filePosterKey'])) {
+            $this->filePosterKey = $formConf['filePosterKey'];
+        }
+
+        if (!empty($formConf['fileNameKey'])) {
+            $this->fileNameKey = $formConf['fileNameKey'];
+        }
+
+        if (!empty($formConf['fileNamePrefix'])) {
+            $this->fileNamePrefix = $formConf['fileNamePrefix'];
         }
 
         $this->formConf = &$formConf;
@@ -132,9 +183,26 @@ class PQFormBuilder
     }
 
     /**
+     * Добавить новые разделы в форму
+     *
+     * @param array $newSections - массив новых разделов
+     *
+     * @return PQFormBuilder
+     */
+    public function addSections(array $newSections): PQFormBuilder
+    {
+        $this->formConf['sections'] = array_merge($this->formConf['sections'], $newSections['sections']);
+        foreach ($newSections['sections'] as $section) {
+            $this->parseSection($section);
+        }
+
+        return $this;
+    }
+
+    /**
      * Добавить атрибуты к элементу
      *
-     * @param $el - элемент
+     * @param \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery $el - элемент
      * @param array $attrs - массив атрибутов вида <имя атрибута> => <значение атрибута>
      * @param array $stopAttrs - массив имен атрибутов, которые добавлять не надо
      *
@@ -162,7 +230,7 @@ class PQFormBuilder
      *
      * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery|null
      */
-    private function parseButtons($section, array $buttons)
+    private function renderButtons($section, array $buttons)
     {
         foreach($buttons as $button) {
             $button['html'] = !empty($button['html']) ? $button['html'] : (!empty($button['text']) ? $button['text'] : '');
@@ -172,7 +240,39 @@ class PQFormBuilder
             self::renderAttributes($buttonEl, $button);
         }
 
-        return $this->form;
+        return $section;
+    }
+
+    /**
+     * Софрмировать из массива свойств раздела HTML-раздел
+     *
+     * @param array $section - массив свойств раздела формы
+     *
+     * @return array|null
+     *
+     * @throws \Exception
+     */
+    private function renderSection(array $section)
+    {
+        $section['html'] = !empty($section['html']) ? $section['html'] : (!empty($section['text']) ? $section['text'] : '');
+        if (empty($section['id']) || !$section['html'] || empty($section['fields']) || !is_array($section['fields'])) {
+            return null;
+        }
+
+        $formSection = phpQuery::pq('<section>')->attr('id', $section['id'])->appendTo($this->form);
+
+        $section['href'] = "#{$section['id']}";
+        $menuEl = phpQuery::pq('<a>')->html($section['html'])->appendTo($this->menu);
+        self::renderAttributes($menuEl, $section);
+
+        $this->parseFields($formSection, $section['fields']);
+
+        if (!empty($section['buttons']) && is_array($section['buttons'])) {
+            $section['buttons'] = isset($section['buttons']) && is_array($section['buttons']) ? $section['buttons'] : [];
+            $this->parseButtons($formSection, array_merge($this->formConf['buttons'], $section['buttons']));
+        }
+
+        return $section;
     }
 
     /**
@@ -182,30 +282,14 @@ class PQFormBuilder
      *
      * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery|null
      */
-    private function parseSections(array $sections)
+    private function renderSections(array $sections)
     {
         $this->menu = phpQuery::pq('<menu>');
         self::renderAttributes($this->menu, $this->formConf['menu']);
         $this->title->after($this->menu);
 
         foreach($sections as $number => $section) {
-            $section['html'] = !empty($section['html']) ? $section['html'] : (!empty($section['text']) ? $section['text'] : '');
-            if (empty($section['id']) || !$section['html'] || empty($section['fields']) || !is_array($section['fields'])) {
-                continue;
-            }
-
-            $formSection = phpQuery::pq('<section>')->attr('id', $section['id'])->appendTo($this->form);
-
-            $section['href'] = "#{$section['id']}";
-            $menuEl = phpQuery::pq('<a>')->html($section['html'])->appendTo($this->menu);
-            self::renderAttributes($menuEl, $section);
-
-            $this->parseFields($formSection, $section['fields']);
-
-            if (!empty($section['buttons']) && is_array($section['buttons'])) {
-                $section['buttons'] = isset($section['buttons']) && is_array($section['buttons']) ? $section['buttons'] : [];
-                $this->parseButtons($formSection, array_merge($this->formConf['buttons'], $section['buttons']));
-            }
+            $this->parseSection($section);
         }
 
         if (!empty($this->formConf['invisibleClass']) && !empty($this->formConf['currentClass'])) {
@@ -214,9 +298,18 @@ class PQFormBuilder
             $this->menu->find('a')->eq($visibleNumber)->addClass($this->formConf['currentClass']);
         }
 
-        return $this->menu;
+        return $this;
     }
 
+    /**
+     * Сформировать подсказку в полю формы
+     *
+     * @param array $field - массив свойст поля формы
+     *
+     * @return array|null|\phpQueryObject
+     *
+     * @throws \Exception
+     */
     private function renderFieldHint(array &$field)
     {
         if (empty($field['hint'])) {
@@ -234,7 +327,7 @@ class PQFormBuilder
      *
      * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery|null
      */
-    private function parseFields($section, array $fields)
+    private function renderFields($section, array $fields)
     {
         foreach($fields as $field) {
             if (empty($field['name']) || (empty($field['type']) && empty($field['template']))) {
@@ -260,23 +353,42 @@ class PQFormBuilder
         return $section;
     }
 
-    private function renderTemplateField(array &$field): ?array
+    /**
+     * Встроить в форму поле загружаемое в виде HTML-шаблона
+     *
+     * @param array $field - свойства поля
+     *
+     * @return array
+     *
+     * @throws \Exception
+     */
+    private function renderTemplateField(array &$field): array
     {
         if (empty($this->formConf['templatePath']) || empty($field['template'])) {
-            return null;
+            return [];
         }
 
         $fieldWrapper = phpQuery::pq(file_get_contents($this->formConf['templatePath'] . '/' . $field['template']));
-        $fieldWrapper->find('label')->text($field['html']);
+        $fieldWrapper->find('label, .label')->text($field['html']);
         $fieldEl = $fieldWrapper->find('input, select, textarea');
         $hint = $this->renderFieldHint($field);
         $fieldEl->after($hint);
         self::renderAttributes($fieldEl, $field);
+        $fieldWrapper->find('*[data-view]')->attr('data-view', $field['name']);
 
         return [$fieldWrapper];
     }
 
-    private function renderInlineField(array &$field): ?array
+    /**
+     * Встроить в форму поле описанное только массивом свойств
+     *
+     * @param array $field - массив свойств поля
+     *
+     * @return array
+     *
+     * @throws \Exception
+     */
+    private function renderInlineField(array &$field): array
     {
         $label = phpQuery::pq('<label>')
             ->html($field['html'])
@@ -285,7 +397,12 @@ class PQFormBuilder
         switch ($field['type']) {
             case 'select':
                 $fieldEl = phpQuery::pq('<select>')->val($field['value']);
-                self::renderAttributes($fieldEl, $field, ['type', 'options']);
+                if (!empty($field['empty-text'])) {
+                    $field['options'] = $field['options'] ?? [];
+                    array_unshift($field['options'], ['text' => $field['empty-text'], 'value' => '']);
+                }
+
+                self::renderAttributes($fieldEl, $field, ['type', 'options', 'empty-text']);
 
                 if (empty($field['options']) || !is_array($field['options'])) {
                     break;
@@ -299,16 +416,32 @@ class PQFormBuilder
                     $option['html'] = !empty($option['html']) ? $option['html'] : (!empty($option['text']) ? $option['text'] : $option['value']);
                     $optionEl = phpQuery::pq('<option>')
                         ->html($option['html'])
-                        ->val()
+                        ->val($option['value'])
                         ->appendTo($fieldEl);
                     self::renderAttributes($optionEl, $option);
                 }
+
                 break;
 
             case 'textarea':
                 $fieldEl = phpQuery::pq('<textarea>')->val($field['value']);
                 self::renderAttributes($fieldEl, $field, ['type']);
                 break;
+
+            case 'radio':
+                if (empty($field['variants'])) {
+                    $fieldEl = phpQuery::pq('<input>');
+                    self::renderAttributes($fieldEl, $field);
+                    break;
+                }
+
+                foreach ($field['variants'] as $value) {
+                    $fieldEl = phpQuery::pq('<input>')->val($value);
+                    self::renderAttributes($fieldEl, $field);
+                }
+
+                break;
+
             default:
                 $fieldEl = phpQuery::pq('<input>')->val($field['value']);
                 self::renderAttributes($fieldEl, $field);
@@ -317,9 +450,9 @@ class PQFormBuilder
         $hint = self::renderFieldHint($field);
 
         if ($this->formConf['labelAfter'])
-            $elements = [$fieldEl, $hint, $label];
+            $elements = [&$fieldEl, &$hint, &$label];
         else {
-            $elements = [$label, $fieldEl, $hint];
+            $elements = [&$label, &$fieldEl, &$hint];
         }
 
         if (empty($field['fieldWrapper'])) {
@@ -327,7 +460,7 @@ class PQFormBuilder
         }
 
         $fieldWrapper = phpQuery::pq('<div>')->appendTo($this->form);
-        self::renderAttributes($fieldWrapper, $field['fieldWrapper']);
+        self::renderAttributes($fieldWrapper, $field['fieldWrapper'] + ['required' => $field['required'] ?? '']);
 
         foreach ($elements as $el) {
             $fieldWrapper->append($el);
@@ -346,7 +479,12 @@ class PQFormBuilder
     public function setFormValues(array $valuesObject)
     {
         foreach($valuesObject as $name => $value) {
-            self::setInputValue($name, $value);
+            //self::setInputValue($name, $value);
+            if ((string) ($element = $this->form->find("[name='$name']:not([type=file]"))) {
+                $element->val($value);
+                continue;
+            }
+
             self::setImageValue($name, $value);
         }
 
@@ -366,30 +504,47 @@ class PQFormBuilder
     private function setInputValue(string $name, $value)
     {
         if (!((string) $element = $this->form->find("[name='$name']"))) {
-            return;
+            return null;
         }
 
-        if (is_array($value) && $element->is('select')) {
-            if (!empty($this->selectTextFieldName) || !empty($this->selectValueFieldName)) {
-                throw new PQFormBuilderException('В конфигурации не заданы имена полей для получения значений и текcтов выпадающего списка');
-            }
-
-            $selectTextFieldName = in_array($this->selectTextFieldName, $value[0]) ? $this->selectTextFieldName : $this->selectValueFieldName;
-            $attrs = array_map(function ($item) use ($selectTextFieldName) {
-                unset($item[$this->selectTextFieldName], $item[$this->selectValueFieldName]);
-            }, $value);
-            $this->setSelectOptions(
-                $element,
-                array_column($value, $this->selectValueFieldName),
-                $value['addEmpty'] ?? true,
-                array_column($value, $this->selectTextFieldName),
-                $attrs
-            );
-        } else {
-            $element->val($value);
-        }
+        $element->val($value);
 
         return $element;
+    }
+
+    /**
+     * Формирование опций и занчений выпадающего списка
+     *
+     * @param string $name - имя элемента формы
+     * @param array $value - значение
+     *
+     * @return null|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
+     *
+     * @throws PQFormBuilderException
+     * @throws \Exception
+     */
+    private function setSelectValue(string $name, array $options)
+    {
+        if (!((string) $element = $this->form->find("select[name='$name']"))) {
+            return null;
+        }
+
+        if (!empty($this->selectTextFieldName) || !empty($this->selectValueFieldName)) {
+            throw new PQFormBuilderException('В конфигурации не заданы имена полей для получения значений и текcтов выпадающего списка');
+        }
+
+        $selectTextFieldName = in_array($this->selectTextFieldName, $value[0]) ? $this->selectTextFieldName : $this->selectValueFieldName;
+        $attrs = array_map(function ($item) use ($selectTextFieldName) {
+            unset($item[$this->selectTextFieldName], $item[$this->selectValueFieldName]);
+        }, $value);
+
+        $this->setSelectOptions(
+            $element,
+            array_column($value, $this->selectValueFieldName),
+            $value['addEmpty'] ?? true,
+            array_column($value, $this->selectTextFieldName),
+            $attrs
+        );
     }
 
     /**
@@ -413,6 +568,7 @@ class PQFormBuilder
         $element->removeClass($this->stopImageClass);
         $lastIndex = count($value) - 1;
         foreach ($value as $index => $imgSrc) {
+            $imgSrc = $imgSrc['file_path'] ?? $imgSrc;
             $element
                 ->attr('src', $imgSrc)
                 ->after(
@@ -427,6 +583,42 @@ class PQFormBuilder
                 $element->after($newElement);
                 $element = $newElement;
             }
+        }
+
+        return $element;
+    }
+
+    /**
+     * Вставка изображений
+     *
+     * @param string $name - имя элемента для отображения картинки
+     * @param $value - изображение или массив изображений
+     *
+     * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
+     */
+    private function setFileValue(string $name, $value)
+    {
+        if (!is_array($value)) {
+            $value = [$value];
+        } else {
+            $name = "{$name}[]";
+        }
+
+        foreach ($value as $index => $file) {
+            if (empty($file[$this->filePathKey])) {
+                continue;
+            }
+
+            $file[$this->filePosterKey] = $file[$this->filePosterKey] ?? '';
+
+            $this->form->append(
+                pq('<input>')
+                    ->attr('type', 'hidden')
+                    ->attr('name', $this->fileNamePrefix . $name)
+                    ->attr('data-poster', $file[$this->filePosterKey])
+                    ->attr('data-name', $file[$this->fileNameKey])
+                    ->val($file[$this->filePathKey])
+            );
         }
 
         return $element;
@@ -451,8 +643,8 @@ class PQFormBuilder
     {
         if (gettype($select) === 'string') {
             $selectName = $select;
-            if (!((string) $select = $this->form->find("[name='$select']"))) {
-                throw new PQFormBuilderException("Поля с имененем $selectName нет в форме");
+            if (!((string) $select = $this->form->find("select[name='$selectName']")) ) {
+                throw new PQFormBuilderException("Выпадающего списка с имененем $selectName нет в форме");
             }
         }
 
@@ -478,6 +670,48 @@ class PQFormBuilder
         }
 
         return $select;
+    }
+
+    /**
+     * Добавить варианты radio-списка
+     *
+     * @param string|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery $radio - элемент списка или имя обрабатываемого списка
+     * @param array $values - массив значений списка
+     * @param array $htmls - массив дочерних элементов для вариантов
+     * @param array $attrs - массив дополнительных атрибутов для вариантов
+     * @param $selectedValue - выбранный элемент списка
+     *
+     * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
+     *
+     * @throws PQFormBuilderException
+     * @throws \Exception
+     */
+    public function setRadioVariants($radio, array $values, array $htmls = [], array $attrs = [], $selectedValue = null)
+    {
+        if (gettype($radio) === 'string') {
+            $radioName = $radio;
+            if (!((string) $radio = $this->form->find("input[type='radio'][name='$radioName']"))) {
+                throw new PQFormBuilderException("Поля с имененем $radioName нет в форме");
+            }
+        }
+
+        foreach (array_reverse($values) as $index => $value) {
+            $customAttrs = $attrs;
+            if ($value == $selectedValue) {
+                $customAttrs['selected'] = 'selected';
+            }
+
+            $variant = phpQuery::pq('<option>')
+                ->val($value)
+                ->html(!empty($htmls[$index]) ? $htmls[$index] : $value);
+
+            $radio->after($variant);
+            self::renderAttributes($variant, $customAttrs);
+        }
+
+        $radio->remove();
+
+        return $variant;
     }
 
     /**
