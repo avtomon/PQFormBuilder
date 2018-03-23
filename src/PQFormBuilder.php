@@ -15,98 +15,98 @@ class PQFormBuilder
      *
      * @var array|null
      */
-    private $formConf = null;
+    protected $formConf = null;
 
     /**
      * HTML-объект формы
      *
      * @var null|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
      */
-    private $formParent = null;
+    protected $formParent = null;
 
     /**
      * HTML-объект заголовка формы
      *
      * @var null|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
      */
-    private $title = null;
+    protected $title = null;
 
     /**
      * HTML-объект меню формы, если есть деление на разделы полей
      *
      * @var null|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
      */
-    private $menu = null;
+    protected $menu = null;
 
     /**
      * HTML-объект формы (набора полей)
      *
      * @var null|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
      */
-    private $form = null;
+    protected $form = null;
 
     /**
      * Имя поля содержащего значение <option>
      *
      * @var string
      */
-    private $selectValueFieldName = 'value';
+    protected $selectValueFieldName = 'value';
 
     /**
      * Имя поля содержащего тектс <option>
      *
      * @var string
      */
-    private $selectTextFieldName = 'text';
+    protected $selectTextFieldName = 'text';
 
     /**
      * phpQuery-объект формы
      *
      * @var null|\phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
      */
-    private $document = null;
+    protected $document = null;
 
     /**
      * Класс картинки отображающей отсутствие картинок
      *
      * @var mixed|string
      */
-    private $stopImageClass = 'no-image';
+    protected $stopImageClass = 'no-image';
 
     /**
      * HTML-код шаблона подсказки к полям
      *
      * @var mixed|string
      */
-    private $hintHTML = '<i class="material-icons tooltipped" data-position="right" data-delay="50" data-tooltip="I am a tooltip">info_outline</i>';
+    protected $hintHTML = '<i class="material-icons tooltipped" data-position="right" data-delay="50" data-tooltip="I am a tooltip">info_outline</i>';
 
     /**
      * Индекс пути к файлу в массиве файлов,
      *
      * @var string
      */
-    private $filePathKey = 'file_path';
+    protected $filePathKey = 'file_path';
 
     /**
      * Индекс пути к постеру файла (если есть) в массиве файлов
      *
      * @var mixed|string
      */
-    private $filePosterKey = 'file_poster';
+    protected $filePosterKey = 'file_poster';
 
     /**
      * Индеск изначального имени файла в массиве файлов
      *
      * @var mixed|string
      */
-    private $fileNameKey = 'file_name';
+    protected $fileNameKey = 'file_name';
 
     /**
      * Префикс для подгжужаемых в форму, ранее сохраненных файлов
      *
      * @var mixed|string
      */
-    private $fileNamePrefix = 'old_';
+    protected $fileNamePrefix = 'old_';
 
     /**
      * Конструктор
@@ -208,7 +208,7 @@ class PQFormBuilder
      *
      * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery|null
      */
-    private static function renderAttributes(&$el, array $attrs, array $stopAttrs = [])
+    protected static function renderAttributes(&$el, array $attrs, array $stopAttrs = [])
     {
         unset($attrs['html'], $attrs['text'], $attrs['value'], $attrs['hint']);
         foreach ($attrs as $attr => $value) {
@@ -230,7 +230,7 @@ class PQFormBuilder
      *
      * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery|null
      */
-    private function renderButtons($section, array $buttons)
+    protected function renderButtons($section, array $buttons)
     {
         foreach($buttons as $button) {
             $button['html'] = !empty($button['html']) ? $button['html'] : (!empty($button['text']) ? $button['text'] : '');
@@ -252,7 +252,7 @@ class PQFormBuilder
      *
      * @throws \Exception
      */
-    private function renderSection(array $section)
+    protected function renderSection(array $section)
     {
         $section['html'] = !empty($section['html']) ? $section['html'] : (!empty($section['text']) ? $section['text'] : '');
         if (empty($section['id']) || !$section['html'] || empty($section['fields']) || !is_array($section['fields'])) {
@@ -282,7 +282,7 @@ class PQFormBuilder
      *
      * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery|null
      */
-    private function renderSections(array $sections)
+    protected function renderSections(array $sections)
     {
         $this->menu = phpQuery::pq('<menu>');
         self::renderAttributes($this->menu, $this->formConf['menu']);
@@ -310,7 +310,7 @@ class PQFormBuilder
      *
      * @throws \Exception
      */
-    private function renderFieldHint(array &$field)
+    protected function renderFieldHint(array &$field)
     {
         if (empty($field['hint'])) {
             return null;
@@ -327,7 +327,7 @@ class PQFormBuilder
      *
      * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery|null
      */
-    private function renderFields($section, array $fields)
+    protected function renderFields($section, array $fields)
     {
         foreach($fields as $field) {
             if (empty($field['name']) || (empty($field['type']) && empty($field['template']))) {
@@ -362,7 +362,7 @@ class PQFormBuilder
      *
      * @throws \Exception
      */
-    private function renderTemplateField(array &$field): array
+    protected function renderTemplateField(array &$field): array
     {
         if (empty($this->formConf['templatePath']) || empty($field['template'])) {
             return [];
@@ -388,7 +388,7 @@ class PQFormBuilder
      *
      * @throws \Exception
      */
-    private function renderInlineField(array &$field): array
+    protected function renderInlineField(array &$field): array
     {
         $label = phpQuery::pq('<label>')
             ->html($field['html'])
@@ -501,7 +501,7 @@ class PQFormBuilder
      *
      * @throws PQFormBuilderException
      */
-    private function setInputValue(string $name, $value)
+    protected function setInputValue(string $name, $value)
     {
         if (!((string) $element = $this->form->find("[name='$name']"))) {
             return null;
@@ -523,7 +523,7 @@ class PQFormBuilder
      * @throws PQFormBuilderException
      * @throws \Exception
      */
-    private function setSelectValue(string $name, array $options)
+    protected function setSelectValue(string $name, array $options)
     {
         if (!((string) $element = $this->form->find("select[name='$name']"))) {
             return null;
@@ -555,7 +555,7 @@ class PQFormBuilder
      *
      * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
      */
-    private function setImageValue(string $name, $value)
+    protected function setImageValue(string $name, $value)
     {
         if (!((string) $element = $this->form->find("img[data-view='$name']"))) {
             return;
@@ -596,7 +596,7 @@ class PQFormBuilder
      *
      * @return \phpQueryObject|\QueryTemplatesParse|\QueryTemplatesSource|\QueryTemplatesSourceQuery
      */
-    private function setFileValue(string $name, $value)
+    protected function setFileValue(string $name, $value)
     {
         if (!is_array($value)) {
             $value = [$value];
